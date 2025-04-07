@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路线可偏型公交运营模式适应性分析平台</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 添加高德地图 API -->
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=e4495394a76e3fe627c1e2283b5e835f"></script>
+    <!-- 添加D3.js库，用于绘制折线图 -->
+    <script type="text/javascript" src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航栏 -->
+        <header>
+            <div class="logo-container">
+                <div class="logo">路线可偏型公交运营模式适应性分析平台</div>
+                <!-- 城市选择器移到这里 -->
+                <div class="header-city-selector">
+                    <div class="selected-area">
+                        <span id="selected-area-text">上海市-嘉定区</span>
+                        <i class="dropdown-icon">▼</i>
+                    </div>
+                    <div class="area-dropdown">
+                        <div class="dropdown-title">上海市</div>
+                        <div class="district-list">
+                            <div class="district-item" data-district="嘉定区">嘉定区</div>
+                            <div class="district-item" data-district="浦东新区">浦东新区</div>
+                            <div class="district-item" data-district="黄浦区">黄浦区</div>
+                            <div class="district-item" data-district="静安区">静安区</div>
+                            <div class="district-item" data-district="徐汇区">徐汇区</div>
+                            <div class="district-item" data-district="长宁区">长宁区</div>
+                            <div class="district-item" data-district="普陀区">普陀区</div>
+                            <div class="district-item" data-district="虹口区">虹口区</div>
+                            <div class="district-item" data-district="杨浦区">杨浦区</div>
+                            <div class="district-item" data-district="宝山区">宝山区</div>
+                            <div class="district-item" data-district="闵行区">闵行区</div>
+                            <div class="district-item" data-district="松江区">松江区</div>
+                            <div class="district-item" data-district="青浦区">青浦区</div>
+                            <div class="district-item" data-district="奉贤区">奉贤区</div>
+                            <div class="district-item" data-district="金山区">金山区</div>
+                            <div class="district-item" data-district="崇明区">崇明区</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <nav>
+                <button id="btn-analysis" class="nav-btn active">适应性分析</button>
+                <button id="btn-data" class="nav-btn">数据查询</button>
+                <button id="btn-route" class="nav-btn">边缘场景模拟</button>
+                <button id="btn-manage" class="nav-btn">数据管理</button>
+            </nav>
+            <div class="weather-info">
+                <div id="datetime">2023年7月1日 12:00</div>
+                <div id="weather">晴</div>
+            </div>
+        </header>
+
+        <!-- 主内容区域 -->
+        <main>
+            <!-- 适应性分析页面 -->
+            <div id="page-analysis" class="page active">
+                <!-- 地图容器 -->
+                <div id="map-container"></div>
+                
+                <!-- 左侧面板 -->
+                <div class="floating-panel left-panel expanded">
+                    <div class="panel-content">
+                        <div class="panel-header">
+                            <h3>参数设置</h3>
+                            <button id="import-data">导入数据</button>
+                        </div>
+                        
+                        <div class="external-factors">
+                            <h3>外部因素:</h3>
+                            <div class="input-group">
+                                <label>线路长度 (km):</label>
+                                <input type="number" id="route-length" min="0" step="0.1">
+                            </div>
+                            <div class="input-group">
+                                <label>站点个数:</label>
+                                <input type="number" id="station-count" min="0" step="1">
+                            </div>
+                            <div class="input-group">
+                                <label>线路非直线系数:</label>
+                                <input type="number" id="non-linear-coef" min="0" step="0.01">
+                            </div>
+                            <div class="input-group">
+                                <label>沿线客流需求 (人次/km):</label>
+                                <input type="number" id="passenger-demand" min="0" step="1">
+                            </div>
+                            <div class="input-group">
+                                <label>高峰需求比重:</label>
+                                <input type="range" id="peak-demand-ratio" min="0" max="1" step="0.01" value="0.5">
+                                <span id="peak-demand-value">0.5</span>
+                            </div>
+                            <div class="input-group">
+                                <label>空间需求变异系数:</label>
+                                <input type="number" id="spatial-demand-var" min="0" step="0.01">
+                            </div>
+                        </div>
+                        
+                        <div class="internal-config">
+                            <h3>内部配置:</h3>
+                            
+                            <!-- FRT配置 -->
+                            <div class="config-section">
+                                <h4>FRT配置选择</h4>
+                                <div class="input-group">
+                                    <label>车队规模 (辆):</label>
+                                    <input type="range" id="frt-fleet-size" min="0" max="10" step="1" value="5">
+                                    <span id="frt-fleet-value">5</span>
+                                </div>
+                                <!-- FRT车型选择 -->
+                                <div class="config-section">
+                                    <h4>FRT车型选择</h4>
+                                    <div id="frt-vehicles" class="vehicle-options">
+                                        <!-- 车型选项将通过JavaScript动态生成 -->
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>发车间隔 (分钟):</label>
+                                    <input type="range" id="frt-departure-interval" min="10" max="120" step="1" value="30">
+                                    <span id="frt-interval-value">30</span>
+                                </div>
+                            </div>
+                            
+                            <!-- RbDRT配置 -->
+                            <div class="config-section">
+                                <h4>RbDRT配置选择</h4>
+                                <div class="input-group">
+                                    <label>车队规模 (辆):</label>
+                                    <input type="range" id="rbdrt-fleet-size" min="0" max="10" step="1" value="5">
+                                    <span id="rbdrt-fleet-value">5</span>
+                                </div>
+                                <!-- RBDRT车型选择 -->
+                                <div class="config-section">
+                                    <h4>RbDRT车型选择</h4>
+                                    <div id="rbdrt-vehicles" class="vehicle-options">
+                                        <!-- 车型选项将通过JavaScript动态生成 -->
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>发车间隔 (分钟):</label>
+                                    <input type="range" id="rbdrt-departure-interval" min="10" max="120" step="1" value="30">
+                                    <span id="rbdrt-interval-value">30</span>
+                                </div>
+                                <div class="input-group">
+                                    <label>可偏范围 (km):</label>
+                                    <input type="range" id="rbdrt-deviation-range" min="0" max="10" step="0.1" value="2">
+                                    <span id="rbdrt-deviation-value">2</span>
+                                </div>
+                                <div class="input-group">
+                                    <label>松弛时间 (分钟):</label>
+                                    <input type="range" id="rbdrt-relax-time" min="0" max="30" step="1" value="5">
+                                    <span id="rbdrt-relax-value">5</span>
+                                </div>
+                            </div>
+                            
+                            <!-- 智慧车列配置 -->
+                            <div class="config-section">
+                                <h4>智慧车列配置选择</h4>
+                                <div class="input-group">
+                                    <label>车队规模 (辆):</label>
+                                    <input type="range" id="smart-fleet-size" min="0" max="200" step="1" value="50">
+                                    <span id="smart-fleet-value">50</span>
+                                </div>
+                                <div class="input-group">
+                                    <label>发车间隔 (分钟):</label>
+                                    <input type="range" id="smart-departure-interval" min="10" max="120" step="1" value="30">
+                                    <span id="smart-interval-value">30</span>
+                                </div>
+                                <div class="input-group">
+                                    <label>可偏范围 (km):</label>
+                                    <input type="range" id="smart-deviation-range" min="0" max="10" step="0.1" value="2">
+                                    <span id="smart-deviation-value">2</span>
+                                </div>
+                                <div class="input-group">
+                                    <label>松弛时间 (分钟):</label>
+                                    <input type="range" id="smart-relax-time" min="0" max="30" step="1" value="5">
+                                    <span id="smart-relax-value">5</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button id="submit-btn">确定</button>
+                    </div>
+                    <div class="panel-toggle left-toggle">
+                        <span class="toggle-icon">◀</span>
+                    </div>
+                </div>
+               
+                
+                <!-- 右侧面板 -->
+                <div class="floating-panel right-panel expanded">
+                    <div class="panel-content">
+                        <div class="evaluation-results">
+                            <h3>适应性评价结果</h3>
+                            
+                            <div class="results-container">
+                                <div class="charts-container">
+                                    <!-- FRT评价结果 -->
+                                    <div class="result-row">
+                                        <div class="mode-name">FRT</div>
+                                        <div class="charts">
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">乘客效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="frt-passenger-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">公司效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="frt-company-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">环境效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="frt-environment-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">综合效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="frt-comprehensive-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- RbDRT评价结果 -->
+                                    <div class="result-row">
+                                        <div class="mode-name">RdDRT</div>
+                                        <div class="charts">
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">乘客效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="rbdrt-passenger-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">公司效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="rbdrt-company-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">环境效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="rbdrt-environment-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">综合效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="rbdrt-comprehensive-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 智慧车列评价结果 -->
+                                    <div class="result-row">
+                                        <div class="mode-name">智慧车列</div>
+                                        <div class="charts">
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">乘客效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="smart-passenger-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">公司效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="smart-company-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">环境效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="smart-environment-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                            <div class="benefit-item">
+                                                <div class="benefit-label">综合效益</div>
+                                                <div class="chart-bar">
+                                                    <div class="bar" id="smart-comprehensive-benefit" style="width: 0%"></div>
+                                                    <div class="value-display">0.00</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 结果分析 -->
+                                <div class="result-analysis">
+                                    <h3>结果分析</h3>
+                                    <div class="analysis-content">
+                                        <div class="analysis-header">
+                                            <div class="analysis-icon">
+                                                <img src="images/analysis.png" alt="分析图标">
+                                            </div>
+                                            <div class="analysis-config">
+                                                <div class="config-title" id="analysis-title"></div>
+                                                <div class="config-value" id="analysis-scores"></div>
+                                            </div>
+                                        </div>
+                                        <div class="analysis-text">
+                                            <div class="analysis-item">
+                                                <div class="bullet"></div>
+                                                <p><span class="highlight">社会效益分析</span>：<span id="social-analysis"></span></p>
+                                            </div>
+                                            <div class="analysis-divider"></div>
+                                            <div class="analysis-item">
+                                                <div class="bullet"></div>
+                                                <p><span class="highlight">经济性分析</span>：<span id="economic-analysis"></span></p>
+                                            </div>
+                                            <div class="analysis-divider"></div>
+                                            <div class="analysis-item">
+                                                <div class="bullet"></div>
+                                                <p><span class="highlight">RbDRT分析</span>：<span id="rbdrt-analysis"></span></p>
+                                            </div>
+                                            <div class="analysis-divider"></div>
+                                            <div class="analysis-summary" id="summary-analysis"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="sensitivity-analysis">
+                            <h3>灵敏度分析结果</h3>
+                            <div class="sensitivity-options" id="sensitivity-options-container">
+                                <!-- 灵敏度分析选项将通过JavaScript动态生成 -->
+                            </div>
+                            <div class="sensitivity-image">
+                                <!-- 图片将通过JavaScript动态加载 -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-toggle right-toggle">
+                        <span class="toggle-icon">▶</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据查询页面 -->
+            <div id="page-data" class="page" style="display: none;">
+                <h2>数据查询页面</h2>
+                <p>这里是数据查询功能的内容。</p>
+            </div>
+
+            <!-- 边缘场景模拟页面 -->
+            <div id="page-route" class="page" style="display: none;">
+                <h2>边缘场景模拟页面</h2>
+                <p>这里是边缘场景模拟功能的内容。</p>
+            </div>
+
+            <!-- 数据管理页面 -->
+            <div id="page-manage" class="page" style="display: none;">
+                <div class="data-manage-container">
+                    <!-- 左侧排行榜 -->
+                    <div class="ranking-panel">
+                        <div class="panel-header">
+                            <h3>模式改造重要性排名</h3>
+                        </div>
+                        <div class="ranking-list">
+                            <div class="ranking-title">线路改造重要性排名</div>
+                            <!-- 排名列表将由JavaScript动态生成 -->
+                            <div id="ranking-items-container"></div>
+                        </div>
+                        <div class="ranking-note">
+                            <span>数值从大到小</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 右侧道路详情 -->
+                    <div class="road-details-panel">
+                        <div class="panel-header">
+                            <h3>线路运营模式适应性分析</h3>
+                        </div>
+                        <div class="road-details-grid">
+                            <!-- 6个道路模块将由JavaScript动态生成 -->
+                            <div id="road-details-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 
